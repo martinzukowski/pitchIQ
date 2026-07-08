@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<linker>
+  <assembly fullname="SportsProj">
+    <resource name="FSharpSignatureData.SportsProj" action="remove"></resource>
+    <resource name="FSharpSignatureCompressedData.SportsProj" action="remove"></resource>
+    <resource name="FSharpSignatureDataB.SportsProj" action="remove"></resource>
+    <resource name="FSharpSignatureCompressedDataB.SportsProj" action="remove"></resource>
+    <resource name="FSharpOptimizationData.SportsProj" action="remove"></resource>
+    <resource name="FSharpOptimizationCompressedData.SportsProj" action="remove"></resource>
+    <resource name="FSharpOptimizationDataB.SportsProj" action="remove"></resource>
+    <resource name="FSharpOptimizationCompressedDataB.SportsProj" action="remove"></resource>
+    <resource name="FSharpOptimizationInfo.SportsProj" action="remove"></resource>
+    <resource name="FSharpSignatureInfo.SportsProj" action="remove"></resource>
+  </assembly>
+</linker>

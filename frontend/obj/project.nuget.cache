@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "dgSpecHash": "ThN/28rCQNs=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\MartinZukowski\\Desktop\\sportsProj\\frontend\\SportsProj.fsproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\MartinZukowski\\.nuget\\packages\\fable.browser.blob\\1.4.0\\fable.browser.blob.1.4.0.nupkg.sha512",
+    "C:\\Users\\MartinZukowski\\.nuget\\packages\\fable.browser.dom\\2.20.0\\fable.browser.dom.2.20.0.nupkg.sha512",
+    "C:\\Users\\MartinZukowski\\.nuget\\packages\\fable.browser.event\\1.7.0\\fable.browser.event.1.7.0.nupkg.sha512",
+    "C:\\Users\\MartinZukowski\\.nuget\\packages\\fable.browser.gamepad\\1.3.0\\fable.browser.gamepad.1.3.0.nupkg.sha512",
+    "C:\\Users\\MartinZukowski\\.nuget\\packages\\fable.browser.webstorage\\1.3.0\\fable.browser.webstorage.1.3.0.nupkg.sha512",
+    "C:\\Users\\MartinZukowski\\.nuget\\packages\\fable.core\\5.2.0\\fable.core.5.2.0.nupkg.sha512",
+    "C:\\Users\\MartinZukowski\\.nuget\\packages\\fsharp.core\\10.1.301\\fsharp.core.10.1.301.nupkg.sha512"
+  ],
+  "logs": []
+}
