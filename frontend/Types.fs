@@ -38,6 +38,7 @@ type JobStatus =
 
 type AppState =
     { file: File option
+      youtubeUrl: string
       analyzing: bool
       progress: int
       statusMessage: string option
@@ -47,6 +48,7 @@ type AppState =
 
 let initialState : AppState =
     { file = None
+      youtubeUrl = ""
       analyzing = false
       progress = 0
       statusMessage = None

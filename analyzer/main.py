@@ -20,7 +20,9 @@ import cv2
 import numpy as np
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from ultralytics import YOLO
+import yt_dlp
 
 app = FastAPI(title="PitchIQ Analyzer")
 app.add_middleware(
@@ -376,6 +378,46 @@ def _update_job(job_id: str, **fields) -> None:
             _jobs[job_id].update(fields)
 
 
+class AnalyzeUrlRequest(BaseModel):
+    url: str
+
+
+def _download_youtube_to_temp(url: str) -> tuple[str, str]:
+    """
+    Download YouTube video to a temp MP4 path and return (path, title).
+    Uses yt-dlp Python API so users can paste a URL instead of uploading files.
+    """
+    out_template = str(Path(tempfile.gettempdir()) / f"pitchiq-{uuid.uuid4().hex}.%(ext)s")
+    ydl_opts = {
+        # Prefer progressive MP4 so ffmpeg is not required.
+        "format": "b[ext=mp4][height<=720]/b[height<=720]/best",
+        "outtmpl": out_template,
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+    }
+
+    try:
+        import imageio_ffmpeg
+
+        ydl_opts["ffmpeg_location"] = imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        # Without ffmpeg, merged (video+audio) formats abort — stick to single-file formats
+        ydl_opts["format"] = "b[ext=mp4][height<=720]/best[height<=720]/best"
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        video_path = ydl.prepare_filename(info)
+        if not video_path.lower().endswith(".mp4"):
+            mp4_candidate = str(Path(video_path).with_suffix(".mp4"))
+            if Path(mp4_candidate).exists():
+                video_path = mp4_candidate
+        if not Path(video_path).exists():
+            raise ValueError("Failed to download YouTube video")
+        title = str(info.get("title") or "YouTube video")
+        return video_path, title
+
+
 def analyze_video(path: str, on_progress: Callable[[int, str], None] | None = None) -> dict:
     cap = cv2.VideoCapture(path)
     if not cap.isOpened():
@@ -571,6 +613,16 @@ def _run_job(job_id: str, video_path: str) -> None:
         Path(video_path).unlink(missing_ok=True)
 
 
+def _run_url_job(job_id: str, url: str) -> None:
+    try:
+        _update_job(job_id, status="processing", progress=1, statusMessage="Downloading YouTube video…")
+        video_path, title = _download_youtube_to_temp(url)
+        _update_job(job_id, statusMessage=f"Downloaded: {title}. Starting analysis…")
+        _run_job(job_id, video_path)
+    except Exception as exc:
+        _update_job(job_id, status="failed", progress=0, statusMessage=str(exc), error=str(exc))
+
+
 @app.get("/health")
 def health():
     with _jobs_lock:
@@ -608,6 +660,36 @@ async def analyze(file: UploadFile = File(...)):
         "jobId": job_id,
         "status": "queued",
         "message": "Analysis queued. Poll /jobs/{jobId} for progress.",
+    }
+
+
+@app.post("/analyze-url")
+def analyze_url(payload: AnalyzeUrlRequest):
+    """Queue a YouTube URL for background download + analysis."""
+    url = payload.url.strip()
+    if not url:
+        return {"status": "failed", "error": "URL is required"}
+
+    job_id = str(uuid.uuid4())[:8]
+    with _jobs_lock:
+        _jobs[job_id] = {
+            "jobId": job_id,
+            "status": "queued",
+            "progress": 0,
+            "statusMessage": "Queued — downloading from YouTube…",
+            "filename": url,
+            "createdAt": time.time(),
+            "result": None,
+            "error": None,
+        }
+
+    thread = threading.Thread(target=_run_url_job, args=(job_id, url), daemon=True)
+    thread.start()
+
+    return {
+        "jobId": job_id,
+        "status": "queued",
+        "message": "YouTube analysis queued. Poll /jobs/{jobId} for progress.",
     }
 
 

@@ -30,12 +30,14 @@ export function PlayerStats_$reflection() {
 }
 
 export class Player extends Record {
-    constructor(id, label, color, score, avgPosition, trail, stats) {
+    constructor(id, label, color, score, team, teamColor, avgPosition, trail, stats) {
         super();
         this.id = (id | 0);
         this.label = label;
         this.color = color;
         this.score = score;
+        this.team = (team | 0);
+        this.teamColor = teamColor;
         this.avgPosition = avgPosition;
         this.trail = trail;
         this.stats = stats;
@@ -43,7 +45,7 @@ export class Player extends Record {
 }
 
 export function Player_$reflection() {
-    return record_type("Types.Player", [], Player, () => [["id", int32_type], ["label", string_type], ["color", string_type], ["score", float64_type], ["avgPosition", PlayerPosition_$reflection()], ["trail", array_type(PlayerPosition_$reflection())], ["stats", PlayerStats_$reflection()]]);
+    return record_type("Types.Player", [], Player, () => [["id", int32_type], ["label", string_type], ["color", string_type], ["score", float64_type], ["team", int32_type], ["teamColor", string_type], ["avgPosition", PlayerPosition_$reflection()], ["trail", array_type(PlayerPosition_$reflection())], ["stats", PlayerStats_$reflection()]]);
 }
 
 export class AnalysisResult extends Record {
@@ -77,9 +79,10 @@ export function JobStatus_$reflection() {
 }
 
 export class AppState extends Record {
-    constructor(file, analyzing, progress, statusMessage, error, result, selectedPlayerId) {
+    constructor(file, youtubeUrl, analyzing, progress, statusMessage, error, result, selectedPlayerId) {
         super();
         this.file = file;
+        this.youtubeUrl = youtubeUrl;
         this.analyzing = analyzing;
         this.progress = (progress | 0);
         this.statusMessage = statusMessage;
@@ -90,8 +93,8 @@ export class AppState extends Record {
 }
 
 export function AppState_$reflection() {
-    return record_type("Types.AppState", [], AppState, () => [["file", option_type(class_type("Browser.Types.File", undefined))], ["analyzing", bool_type], ["progress", int32_type], ["statusMessage", option_type(string_type)], ["error", option_type(string_type)], ["result", option_type(AnalysisResult_$reflection())], ["selectedPlayerId", option_type(int32_type)]]);
+    return record_type("Types.AppState", [], AppState, () => [["file", option_type(class_type("Browser.Types.File", undefined))], ["youtubeUrl", string_type], ["analyzing", bool_type], ["progress", int32_type], ["statusMessage", option_type(string_type)], ["error", option_type(string_type)], ["result", option_type(AnalysisResult_$reflection())], ["selectedPlayerId", option_type(int32_type)]]);
 }
 
-export const initialState = new AppState(undefined, false, 0, undefined, undefined, undefined, undefined);
+export const initialState = new AppState(undefined, "", false, 0, undefined, undefined, undefined, undefined);
 

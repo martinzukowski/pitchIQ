@@ -100,6 +100,25 @@ let submitClip (file: File) : Async<Result<string, string>> =
                     "Could not reach the analyzer. Start it with: cd analyzer && python main.py"
     }
 
+let submitYoutubeUrl (url: string) : Async<Result<string, string>> =
+    async {
+        try
+            let body = createObj [ "url" ==> url ]
+
+            let! result =
+                fetchJson
+                    "/api/analyze-url"
+                    (Some(createObj [ "method" ==> "POST"; "headers" ==> createObj [ "Content-Type" ==> "application/json" ]; "body" ==> JS.JSON.stringify(body) ]))
+
+            match result with
+            | Ok json -> return Ok (json?jobId |> unbox<string>)
+            | Error msg -> return Error msg
+        with _ ->
+            return
+                Error
+                    "Could not reach the analyzer. Start it with: cd analyzer && python main.py"
+    }
+
 let getJobStatus (jobId: string) : Async<Result<JobStatus, string>> =
     async {
         let! result = fetchJson $"/api/jobs/{jobId}" None
@@ -115,34 +134,45 @@ let getJobStatus (jobId: string) : Async<Result<JobStatus, string>> =
         | Error msg -> return Error msg
     }
 
+let private pollJob (jobId: string) (onProgress: int -> string -> unit) : Async<Result<AnalysisResult, string>> =
+    async {
+        onProgress 0 "Queued — processing in background…"
+
+        let rec poll () =
+            async {
+                do! Async.Sleep 1200
+                let! statusResult = getJobStatus jobId
+
+                match statusResult with
+                | Error msg -> return Error msg
+                | Ok job ->
+                    onProgress job.progress job.statusMessage
+
+                    match job.status with
+                    | "completed" ->
+                        match job.result with
+                        | Some result -> return Ok result
+                        | None -> return Error "Job completed but no result returned"
+                    | "failed" ->
+                        return Error (job.error |> Option.defaultValue "Analysis failed")
+                    | _ -> return! poll ()
+            }
+
+        return! poll ()
+    }
+
 let analyzeClipWithPolling (file: File) (onProgress: int -> string -> unit) : Async<Result<AnalysisResult, string>> =
     async {
         let! submitResult = submitClip file
-
         match submitResult with
         | Error msg -> return Error msg
-        | Ok jobId ->
-            onProgress 0 "Queued — processing in background…"
+        | Ok jobId -> return! pollJob jobId onProgress
+    }
 
-            let rec poll () =
-                async {
-                    do! Async.Sleep 1200
-                    let! statusResult = getJobStatus jobId
-
-                    match statusResult with
-                    | Error msg -> return Error msg
-                    | Ok job ->
-                        onProgress job.progress job.statusMessage
-
-                        match job.status with
-                        | "completed" ->
-                            match job.result with
-                            | Some result -> return Ok result
-                            | None -> return Error "Job completed but no result returned"
-                        | "failed" ->
-                            return Error (job.error |> Option.defaultValue "Analysis failed")
-                        | _ -> return! poll ()
-                }
-
-            return! poll ()
+let analyzeYoutubeWithPolling (url: string) (onProgress: int -> string -> unit) : Async<Result<AnalysisResult, string>> =
+    async {
+        let! submitResult = submitYoutubeUrl url
+        match submitResult with
+        | Error msg -> return Error msg
+        | Ok jobId -> return! pollJob jobId onProgress
     }

@@ -18,7 +18,7 @@ function parseStats(stats) {
 
 function parsePlayer(p) {
     const trail = map(parsePosition, p.trail);
-    return new Player(p.id, p.label, p.color, p.score, parsePosition(p.avgPosition), trail, parseStats(p.stats));
+    return new Player(p.id, p.label, p.color, p.score, p.team, p.teamColor, parsePosition(p.avgPosition), trail, parseStats(p.stats));
 }
 
 function parseAnalysis(data) {
@@ -63,6 +63,24 @@ export function submitClip(file) {
     }), (_arg_1) => singleton.Return(new FSharpResult$2(1, ["Could not reach the analyzer. Start it with: cd analyzer && python main.py"]))));
 }
 
+export function submitYoutubeUrl(url) {
+    return singleton.Delay(() => singleton.TryWith(singleton.Delay(() => {
+        const body = {
+            url: url,
+        };
+        return singleton.Bind(fetchJson("/api/analyze-url", some({
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+        })), (_arg) => {
+            const result = _arg;
+            return (result.tag === 1) ? singleton.Return(new FSharpResult$2(1, [result.fields[0]])) : singleton.Return(new FSharpResult$2(0, [result.fields[0].jobId]));
+        });
+    }), (_arg_1) => singleton.Return(new FSharpResult$2(1, ["Could not reach the analyzer. Start it with: cd analyzer && python main.py"]))));
+}
+
 export function getJobStatus(jobId) {
     return singleton.Delay(() => singleton.Bind(fetchJson(concat("/api/jobs/", jobId), undefined), (_arg) => {
         const result = _arg;
@@ -76,43 +94,51 @@ export function getJobStatus(jobId) {
     }));
 }
 
+function pollJob(jobId, onProgress) {
+    return singleton.Delay(() => {
+        onProgress(0, "Queued — processing in background…");
+        const poll = () => singleton.Delay(() => singleton.Bind(sleep(1200), () => singleton.Bind(getJobStatus(jobId), (_arg_1) => {
+            const statusResult = _arg_1;
+            if (statusResult.tag === 0) {
+                const job = statusResult.fields[0];
+                onProgress(job.progress, job.statusMessage);
+                const matchValue = job.status;
+                switch (matchValue) {
+                    case "completed": {
+                        const matchValue_1 = job.result;
+                        if (matchValue_1 == null) {
+                            return singleton.Return(new FSharpResult$2(1, ["Job completed but no result returned"]));
+                        }
+                        else {
+                            const result = matchValue_1;
+                            return singleton.Return(new FSharpResult$2(0, [result]));
+                        }
+                    }
+                    case "failed":
+                        return singleton.Return(new FSharpResult$2(1, [defaultArg(job.error, "Analysis failed")]));
+                    default:
+                        return singleton.ReturnFrom(poll());
+                }
+            }
+            else {
+                return singleton.Return(new FSharpResult$2(1, [statusResult.fields[0]]));
+            }
+        })));
+        return singleton.ReturnFrom(poll());
+    });
+}
+
 export function analyzeClipWithPolling(file, onProgress) {
     return singleton.Delay(() => singleton.Bind(submitClip(file), (_arg) => {
         const submitResult = _arg;
-        if (submitResult.tag === 0) {
-            onProgress(0, "Queued — processing in background…");
-            const poll = () => singleton.Delay(() => singleton.Bind(sleep(1200), () => singleton.Bind(getJobStatus(submitResult.fields[0]), (_arg_2) => {
-                const statusResult = _arg_2;
-                if (statusResult.tag === 0) {
-                    const job = statusResult.fields[0];
-                    onProgress(job.progress, job.statusMessage);
-                    const matchValue = job.status;
-                    switch (matchValue) {
-                        case "completed": {
-                            const matchValue_1 = job.result;
-                            if (matchValue_1 == null) {
-                                return singleton.Return(new FSharpResult$2(1, ["Job completed but no result returned"]));
-                            }
-                            else {
-                                const result = matchValue_1;
-                                return singleton.Return(new FSharpResult$2(0, [result]));
-                            }
-                        }
-                        case "failed":
-                            return singleton.Return(new FSharpResult$2(1, [defaultArg(job.error, "Analysis failed")]));
-                        default:
-                            return singleton.ReturnFrom(poll());
-                    }
-                }
-                else {
-                    return singleton.Return(new FSharpResult$2(1, [statusResult.fields[0]]));
-                }
-            })));
-            return singleton.ReturnFrom(poll());
-        }
-        else {
-            return singleton.Return(new FSharpResult$2(1, [submitResult.fields[0]]));
-        }
+        return (submitResult.tag === 0) ? singleton.ReturnFrom(pollJob(submitResult.fields[0], onProgress)) : singleton.Return(new FSharpResult$2(1, [submitResult.fields[0]]));
+    }));
+}
+
+export function analyzeYoutubeWithPolling(url, onProgress) {
+    return singleton.Delay(() => singleton.Bind(submitYoutubeUrl(url), (_arg) => {
+        const submitResult = _arg;
+        return (submitResult.tag === 0) ? singleton.ReturnFrom(pollJob(submitResult.fields[0], onProgress)) : singleton.Return(new FSharpResult$2(1, [submitResult.fields[0]]));
     }));
 }
 

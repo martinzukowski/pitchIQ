@@ -34,6 +34,15 @@ let span attrs children = el "span" attrs children
 let formatPlayerMeta (player: Player) =
     sprintf "%.0fm covered · %.1f km/h avg" player.stats.distanceM player.stats.avgSpeedKmh
 
+let formatRating (score: float) = sprintf "%.1f" score
+
+let ratingColor (score: float) =
+    if score >= 8.0 then "#16a34a"
+    elif score >= 7.0 then "#22c55e"
+    elif score >= 6.0 then "#eab308"
+    elif score >= 5.0 then "#f97316"
+    else "#ef4444"
+
 let renderPlayerRow (player: Player) (selected: bool) (onSelect: int -> unit) =
     let row = div [ ("class", if selected then "player-row selected" else "player-row") ] []
 
@@ -87,10 +96,23 @@ let handleFile (file: File) (current: AppState) =
             error = None
             selectedPlayerId = None }
 
+let handleYoutubeUrl (value: string) (current: AppState) =
+    setState
+        { current with
+            youtubeUrl = value
+            error = None
+            selectedPlayerId = None }
+
 let analyze state =
-    match state.file with
-    | None -> ()
-    | Some file ->
+    let source =
+        match state.file, state.youtubeUrl.Trim() with
+        | Some file, _ -> Choice1Of2 file
+        | None, url when url <> "" -> Choice2Of2 url
+        | _ -> Choice2Of2 ""
+
+    match source with
+    | Choice2Of2 "" -> ()
+    | _ ->
         pollGeneration <- pollGeneration + 1
         let myGen = pollGeneration
 
@@ -111,7 +133,10 @@ let analyze state =
                             statusMessage = Some msg
                             error = None }
 
-            let! result = analyzeClipWithPolling file onProgress
+            let! result =
+                match source with
+                | Choice1Of2 file -> analyzeClipWithPolling file onProgress
+                | Choice2Of2 url -> analyzeYoutubeWithPolling url onProgress
 
             if myGen <> pollGeneration then
                 ()
@@ -202,15 +227,28 @@ let render (state: AppState) =
             | _ -> ()
     )
 
+    let ytInput = Dom.document.createElement "input" :?> HTMLInputElement
+    ytInput.setAttribute ("type", "url")
+    ytInput.setAttribute ("placeholder", "or paste a YouTube link (https://youtube.com/...)")
+    ytInput.setAttribute ("class", "url-input")
+    ytInput.value <- state.youtubeUrl
+    ytInput.addEventListener ("input", fun e -> handleYoutubeUrl (unbox<HTMLInputElement> e.target).value state)
+
     let fileLabel =
         match state.file with
         | None -> "No file selected"
         | Some f -> $"Selected: {f.name}"
 
+    let sourceHint =
+        if state.youtubeUrl.Trim() <> "" then
+            $"YouTube URL: {state.youtubeUrl.Trim()}"
+        else
+            fileLabel
+
     let analyzeBtnAttrs =
         let baseAttrs = [ ("class", "btn btn-primary") ]
 
-        if Option.isNone state.file then
+        if Option.isNone state.file && state.youtubeUrl.Trim() = "" then
             baseAttrs @ [ ("disabled", "true") ]
         else
             baseAttrs
@@ -256,7 +294,8 @@ let render (state: AppState) =
         let children =
             [ h2 [] [ text "Upload" ]
               uploadZone
-              p [] [ text fileLabel ]
+              ytInput
+              p [] [ text sourceHint ]
               div [ ("class", "actions") ] [ analyzeBtn ] ]
             @ (progressEl |> Option.toList)
             @ (statusEl |> Option.toList)
